@@ -1,10 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const { login } = require('../controller/login');
+const { login, socialLogin } = require('../controller/login');
+const { saveSearchHistory, getSearchHistory } = require('../controller/search');
+const { geocodeLocation, searchNearbyPlaces, getPlaceDetails } = require('../controller/google-proxy');
 const verifyToken = require('../controller/verify-token');
 
 // Authentication routes
 router.route("/login").post(login);
+router.route("/social-login").post(socialLogin);
+
+// Search routes
+router.route("/save-search-history").post(saveSearchHistory);
+router.route("/search-history").get(getSearchHistory);
+
+// Google API proxy routes
+router.route("/google/geocode").get(geocodeLocation);
+router.route("/google/places/nearby").get(searchNearbyPlaces);
+router.route("/google/places/details").get(getPlaceDetails);
 
 // Protected routes (add more as needed)
 // Example: router.route("/profile").get(verifyToken, getUserProfile);

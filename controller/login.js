@@ -3,6 +3,90 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/dbconnection');
 const config = require('../config/config');
 
+const socialLogin = async (req, res) => {
+    try {
+        const { email, name, provider, providerId, avatarUrl } = req.body;
+
+        if (!email || !name || !provider || !providerId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email, name, provider, and providerId are required'
+            });
+        }
+
+        // Check if user exists with this email
+        let user;
+        const userQuery = 'SELECT * FROM users WHERE email = $1 AND is_active = true';
+        const userResult = await db.query(userQuery, [email]);
+
+        if (userResult.rows.length === 0) {
+            // Create new user for social login
+            const insertUserQuery = `
+                INSERT INTO users (email, name, provider, provider_id, avatar_url, is_verified, is_active)
+                VALUES ($1, $2, $3, $4, $5, true, true)
+                RETURNING *
+            `;
+            const newUserResult = await db.query(insertUserQuery, [email, name, provider, providerId, avatarUrl]);
+            user = newUserResult.rows[0];
+        } else {
+            user = userResult.rows[0];
+
+            // Update user with social login info if needed
+            if (user.provider === 'local' || user.provider_id !== providerId) {
+                const updateUserQuery = `
+                    UPDATE users SET provider = $1, provider_id = $2, avatar_url = $3, name = $4
+                    WHERE uuid = $5
+                    RETURNING *
+                `;
+                const updatedUserResult = await db.query(updateUserQuery, [provider, providerId, avatarUrl, name, user.uuid]);
+                user = updatedUserResult.rows[0];
+            }
+        }
+
+        // Generate JWT token
+        const payload = {
+            uuid: user.uuid,
+            email: user.email,
+            name: user.name
+        };
+
+        const token = jwt.sign(payload, config.JWT_SECRET, { expiresIn: '24h' });
+
+        // Store token in database
+        const tokenQuery = `
+            INSERT INTO tokens (user_uuid, token, token_type, expires_at)
+            VALUES ($1, $2, $3, $4)
+            RETURNING uuid
+        `;
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        await db.query(tokenQuery, [user.uuid, token, 'auth', expiresAt]);
+
+        // Return success response
+        res.status(200).json({
+            success: true,
+            message: 'Social login successful',
+            data: {
+                token,
+                user: {
+                    uuid: user.uuid,
+                    email: user.email,
+                    name: user.name,
+                    provider: user.provider,
+                    avatarUrl: user.avatar_url,
+                    is_verified: user.is_verified
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Social login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+};
+
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -86,4 +170,4 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { login };
+module.exports = { login, socialLogin };
