@@ -1,8 +1,8 @@
 -- Create the database (if needed)
-CREATE DATABASE leadfinder;
+CREATE DATABASE gorilla;
 
 -- Use the database
-\c leadfinder;
+\c gorilla;
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

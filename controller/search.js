@@ -120,16 +120,26 @@ const getSearchHistory = async (req, res) => {
             });
         }
 
-        // Get search history for user
+        // Pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+
+        // Get total count
+        const countQuery = 'SELECT COUNT(*) FROM searches WHERE user_uuid = $1';
+        const countResult = await db.query(countQuery, [userUuid]);
+        const totalRecords = parseInt(countResult.rows[0].count);
+
+        // Get search history for user with pagination
         const historyQuery = `
-            SELECT uuid, query, address, radius, category, results, created_at
+            SELECT uuid, query, address, radius, category, results, created_at, latitude, longitude
             FROM searches
             WHERE user_uuid = $1
             ORDER BY created_at DESC
-            LIMIT 50
+            LIMIT $2 OFFSET $3
         `;
 
-        const historyResult = await db.query(historyQuery, [userUuid]);
+        const historyResult = await db.query(historyQuery, [userUuid, limit, offset]);
 
         const searchHistory = historyResult.rows.map(row => ({
             id: row.uuid,
@@ -138,13 +148,23 @@ const getSearchHistory = async (req, res) => {
             radius: row.radius,
             category: row.category,
             results: row.results,
+            latitude: row.latitude,
+            longitude: row.longitude,
             created_at: row.created_at
         }));
 
         res.status(200).json({
             success: true,
             message: 'Search history retrieved successfully',
-            data: searchHistory
+            data: {
+                searches: searchHistory,
+                pagination: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalRecords / limit),
+                    totalRecords: totalRecords,
+                    limit: limit
+                }
+            }
         });
 
     } catch (error) {
