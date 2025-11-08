@@ -14,4 +14,7 @@ module.exports = {
     MAIL_USER: "abhinaykrmishra@gmail.com",
     MAIL_PASSWORD: "dkan hlkh dlal onjr",
     MAIL_FROM_NAME: "Abhinay",
+
+    // OpenAI API Configuration
+    OPENAI_API_KEY: "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",
 };

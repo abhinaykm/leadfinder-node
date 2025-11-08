@@ -91,3 +91,23 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO users (name, email, password, is_verified, is_active)
 VALUES ('Abhinay kumar mishra', 'abhinay@gmail.com', '$2b$10$3i9iLPPcvgX3MhY2h.Wuse4X2k8WCHqK4/eTKOh8c0FPKOq1yzTKG', true, true)
 ON CONFLICT (email) DO NOTHING;
+
+
+-- SEO Reports Table
+CREATE TABLE IF NOT EXISTS seo_reports (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    website_url VARCHAR(500) NOT NULL,
+    overall_score INTEGER NOT NULL CHECK (overall_score >= 0 AND overall_score <= 100),
+    analysis_data JSONB NOT NULL,
+    email VARCHAR(255),
+    user_uuid UUID REFERENCES users(uuid) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_seo_reports_uuid ON seo_reports(uuid);
+CREATE INDEX IF NOT EXISTS idx_seo_reports_user_uuid ON seo_reports(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_seo_reports_website_url ON seo_reports(website_url);
+CREATE INDEX IF NOT EXISTS idx_seo_reports_created_at ON seo_reports(created_at DESC);
