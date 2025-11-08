@@ -23,10 +23,6 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
