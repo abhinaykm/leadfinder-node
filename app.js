@@ -7,14 +7,33 @@ const db = require('./config/dbconnection');
 
 const app = express();
 
+// CORS Configuration
+const corsOptions = {
+    origin: [
+        'https://buzzhive.nobrainautomation.com',
+        'http://localhost:4200',
+        'http://localhost:4000'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
+    maxAge: 86400 // 24 hours
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
 // Debug middleware
 app.use((req, res, next) => {
     console.log(`${req.method} ${req.path}`);
+    console.log('Origin:', req.headers.origin);
     next();
 });
 
