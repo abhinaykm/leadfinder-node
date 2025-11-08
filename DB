@@ -25,10 +25,7 @@ CREATE TABLE users (
 );
 
 -- Indexes
-CREATE INDEX idx_users_uuid ON users(uuid);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_is_active ON users(is_active);
-CREATE INDEX idx_users_provider_id ON users(provider_id);
+
 
 
 
@@ -57,6 +54,7 @@ CREATE TABLE searches (
 CREATE INDEX idx_users_uuid ON users(uuid);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_is_active ON users(is_active);
+CREATE INDEX idx_users_provider_id ON users(provider_id);
 CREATE INDEX idx_searches_uuid ON searches(uuid);
 CREATE INDEX idx_searches_user_uuid ON searches(user_uuid);
 CREATE INDEX idx_searches_created_at ON searches(created_at DESC);

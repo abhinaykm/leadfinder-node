@@ -1,11 +1,11 @@
 // require('dotenv').config();
 module.exports = {
-    DB_HOST: "localhost",
+    DB_HOST: "gorilla-gorilla.i.aivencloud.com",
     PORT: 3000,
-    DB_PORT: 5432,
-    DB_USER: 'postgres',
-    DB_PASSWORD: 'pgadmin',
-    DB_DATABASE: 'gorilla',
+    DB_PORT: 20109,
+    DB_USER: 'avnadmin',
+    DB_PASSWORD: 'AVNS_7mBC8K--9QHE6VIeXLA',
+    DB_DATABASE: 'defaultdb',
     JWT_SECRET: 'abhinay',
 
     MAIL_HOST: "smtp.gmail.com",
