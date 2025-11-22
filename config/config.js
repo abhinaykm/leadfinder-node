@@ -1,20 +1,30 @@
-// require('dotenv').config();
+require('dotenv').config();
+
 module.exports = {
-    DB_HOST: "localhost",
-    PORT: 3000,
-    DB_PORT: 5432,
-    DB_USER: 'postgres',
-    DB_PASSWORD: 'pgadmin',
-    DB_DATABASE: 'gorilla',
-    JWT_SECRET: 'abhinay',
+    // Server
+    PORT: process.env.PORT || 3000,
 
-    MAIL_HOST: "smtp.gmail.com",
-    MAIL_PORT: 587,
-    MAIL_SECURE: false,
-    MAIL_USER: "abhinaykrmishra@gmail.com",
-    MAIL_PASSWORD: "dkan hlkh dlal onjr",
-    MAIL_FROM_NAME: "Abhinay",
+    // Database
+    DB_HOST: process.env.DB_HOST || "localhost",
+    DB_PORT: process.env.DB_PORT || 5432,
+    DB_USER: process.env.DB_USER || 'postgres',
+    DB_PASSWORD: process.env.DB_PASSWORD || 'pgadmin',
+    DB_DATABASE: process.env.DB_DATABASE || 'gorilla',
 
-    // OpenAI API Configuration
-    OPENAI_API_KEY: "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",
+    // JWT
+    JWT_SECRET: process.env.JWT_SECRET || 'abhinay',
+
+    // Mail Configuration
+    MAIL_HOST: process.env.MAIL_HOST || "smtp.gmail.com",
+    MAIL_PORT: process.env.MAIL_PORT || 587,
+    MAIL_SECURE: process.env.MAIL_SECURE === 'true',
+    MAIL_USER: process.env.MAIL_USER,
+    MAIL_PASSWORD: process.env.MAIL_PASSWORD,
+    MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || "Abhinay",
+
+    // Google Places API
+    GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
+
+    // OpenAI API
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 };
