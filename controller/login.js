@@ -28,6 +28,19 @@ const socialLogin = async (req, res) => {
             `;
             const newUserResult = await db.query(insertUserQuery, [email, name, provider, providerId, avatarUrl]);
             user = newUserResult.rows[0];
+
+            // Initialize user credits (1000 trial credits for new users)
+            await db.query(`
+                INSERT INTO user_credits (user_uuid, credits_balance, is_trial, trial_credits_given)
+                VALUES ($1, 1000, true, true)
+                ON CONFLICT (user_uuid) DO NOTHING
+            `, [user.uuid]);
+
+            // Add credit transaction record
+            await db.query(`
+                INSERT INTO credit_transactions (user_uuid, transaction_type, amount, balance_after, action_type, description)
+                VALUES ($1, 'credit', 1000, 1000, 'trial', 'Welcome bonus - 1000 trial credits')
+            `, [user.uuid]);
         } else {
             user = userResult.rows[0];
 
@@ -40,6 +53,19 @@ const socialLogin = async (req, res) => {
                 `;
                 const updatedUserResult = await db.query(updateUserQuery, [provider, providerId, avatarUrl, name, user.uuid]);
                 user = updatedUserResult.rows[0];
+            }
+
+            // Ensure user has credits initialized (for existing users)
+            const creditsCheck = await db.query('SELECT 1 FROM user_credits WHERE user_uuid = $1', [user.uuid]);
+            if (creditsCheck.rows.length === 0) {
+                await db.query(`
+                    INSERT INTO user_credits (user_uuid, credits_balance, is_trial, trial_credits_given)
+                    VALUES ($1, 1000, true, true)
+                `, [user.uuid]);
+                await db.query(`
+                    INSERT INTO credit_transactions (user_uuid, transaction_type, amount, balance_after, action_type, description)
+                    VALUES ($1, 'credit', 1000, 1000, 'trial', 'Welcome bonus - 1000 trial credits')
+                `, [user.uuid]);
             }
         }
 
@@ -127,6 +153,19 @@ const login = async (req, res) => {
                 success: false,
                 message: 'Please verify your email before logging in'
             });
+        }
+
+        // Ensure user has credits initialized
+        const creditsCheck = await db.query('SELECT 1 FROM user_credits WHERE user_uuid = $1', [user.uuid]);
+        if (creditsCheck.rows.length === 0) {
+            await db.query(`
+                INSERT INTO user_credits (user_uuid, credits_balance, is_trial, trial_credits_given)
+                VALUES ($1, 1000, true, true)
+            `, [user.uuid]);
+            await db.query(`
+                INSERT INTO credit_transactions (user_uuid, transaction_type, amount, balance_after, action_type, description)
+                VALUES ($1, 'credit', 1000, 1000, 'trial', 'Welcome bonus - 1000 trial credits')
+            `, [user.uuid]);
         }
 
         // Generate JWT token
