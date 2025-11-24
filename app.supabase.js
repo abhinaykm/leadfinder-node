@@ -7,13 +7,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// DB CONFIG - Neon PostgreSQL
+// DB CONFIG - Supabase PostgreSQL
 const pool = new Pool({
-    host: process.env.DB_HOST || "ep-proud-hill-a1125h95-pooler.ap-southeast-1.aws.neon.tech",
+    host: process.env.DB_HOST || "db.speiewcctfjngucgwekx.supabase.co",
     port: process.env.DB_PORT || 5432,
-    user: process.env.DB_USER || "neondb_owner",
-    password: process.env.DB_PASSWORD || "npg_oBWeUht6XH5d",
-    database: process.env.DB_DATABASE || "buzzhive",
+    user: process.env.DB_USER || "postgres",
+    password: process.env.DB_PASSWORD || "buzzhive@amit123@!",
+    database: process.env.DB_DATABASE || "postgres",
     ssl: {
         rejectUnauthorized: false
     }

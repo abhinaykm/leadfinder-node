@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: buzzhive-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        value: db.speiewcctfjngucgwekx.supabase.co
+      - key: DB_PORT
+        value: 5432
+      - key: DB_USER
+        value: postgres
+      - key: DB_PASSWORD
+        sync: false  # Set this manually in Render dashboard for security
+      - key: DB_DATABASE
+        value: postgres
