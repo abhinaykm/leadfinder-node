@@ -41,8 +41,7 @@ CREATE TABLE searches (
     radius INTEGER NOT NULL,
     category VARCHAR(50),
     results JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     -- Foreign key constraint using UUID
     CONSTRAINT fk_searches_user_uuid 
         FOREIGN KEY (user_uuid) 

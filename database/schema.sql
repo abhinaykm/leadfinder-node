@@ -56,7 +56,9 @@ CREATE TABLE IF NOT EXISTS tokens (
     token TEXT NOT NULL,
     token_type VARCHAR(50) DEFAULT 'auth',
     expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,   
+    updated_at TIMESTAMP DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tokens_user ON tokens(user_uuid);
@@ -66,13 +68,15 @@ CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);
 -- SEARCHES TABLE (Search History)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS searches (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    query VARCHAR(500),
-    location VARCHAR(255),
-    radius INTEGER,
-    results_count INTEGER DEFAULT 0,
-    metadata JSONB,
+    uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+    user_uuid UUID NOT NULL,
+    query VARCHAR(500) NOT NULL,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    address TEXT,
+    radius INTEGER NOT NULL,
+    category VARCHAR(50),
+    results JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -82,63 +86,77 @@ CREATE INDEX IF NOT EXISTS idx_searches_created ON searches(created_at DESC);
 -- =====================================================
 -- PLANS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS plans (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.plans (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
-    slug VARCHAR(50) UNIQUE NOT NULL,
+    slug VARCHAR(50) NOT NULL UNIQUE,
     description TEXT,
-    price_monthly DECIMAL(10,2) NOT NULL,
-    price_yearly DECIMAL(10,2),
-    credits_monthly INTEGER NOT NULL,
-    features JSONB DEFAULT '[]',
-    is_popular BOOLEAN DEFAULT false,
+    credits INTEGER NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    billing_period VARCHAR(20) DEFAULT 'monthly', -- monthly, yearly
+    features JSONB, -- Array of feature strings
     is_active BOOLEAN DEFAULT true,
     sort_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_plans_slug ON plans(slug);
-CREATE INDEX IF NOT EXISTS idx_plans_active ON plans(is_active);
+-- Insert default plans
+INSERT INTO public.plans (name, slug, description, credits, price, features, sort_order) VALUES
+('Trial', 'trial', 'Free trial credits for new users', 1000, 0.00, '["1000 Credits", "Google Search", "SEO Analysis", "Save Leads", "Basic Support"]', 0),
+('Starter', 'starter', 'Perfect for individuals and small teams', 3000, 19.00, '["3000 Credits/month", "Google Search", "SEO Analysis", "Campaign Management", "AI Writing Tools", "Email Support"]', 1),
+('Agency', 'agency', 'Best for growing agencies', 5000, 34.00, '["5000 Credits/month", "Everything in Starter", "Priority Support", "Advanced Analytics", "Team Collaboration"]', 2),
+('Enterprise', 'enterprise', 'For large organizations', 10000, 59.00, '["10000 Credits/month", "Everything in Agency", "Dedicated Support", "Custom Integrations", "API Access", "White Label Options"]', 3)
+ON CONFLICT (slug) DO NOTHING;
+
 
 -- =====================================================
 -- USER CREDITS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS user_credits (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID UNIQUE REFERENCES users(uuid) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.user_credits (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
     credits_balance INTEGER DEFAULT 0,
     credits_used INTEGER DEFAULT 0,
     is_trial BOOLEAN DEFAULT true,
     trial_credits_given BOOLEAN DEFAULT false,
+    -- BYOK (Bring Your Own Keys) fields
     use_own_keys BOOLEAN DEFAULT false,
-    keys_valid BOOLEAN DEFAULT false,
+    google_api_key VARCHAR(255),
+    openai_api_key VARCHAR(255),
+    keys_valid BOOLEAN DEFAULT true,
+    keys_last_checked TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP,
+    CONSTRAINT unique_user_credits UNIQUE (user_uuid)
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_credits_user ON user_credits(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_user_credits_user_uuid ON public.user_credits(user_uuid);
 
 -- =====================================================
 -- CREDIT TRANSACTIONS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS credit_transactions (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('credit', 'debit')),
+CREATE TABLE IF NOT EXISTS public.credit_transactions (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    transaction_type VARCHAR(50) NOT NULL, -- 'debit', 'credit', 'purchase', 'refund', 'trial'
     amount INTEGER NOT NULL,
     balance_after INTEGER NOT NULL,
-    action_type VARCHAR(50),
-    reference_uuid UUID,
+    action_type VARCHAR(100), -- 'google_search', 'seo_analysis', 'ai_proposal', 'ai_email', 'subscription'
     description TEXT,
+    reference_uuid UUID, -- Reference to search/lead/document UUID
     metadata JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_credit_trans_user ON credit_transactions(user_uuid);
-CREATE INDEX IF NOT EXISTS idx_credit_trans_type ON credit_transactions(transaction_type);
-CREATE INDEX IF NOT EXISTS idx_credit_trans_action ON credit_transactions(action_type);
-CREATE INDEX IF NOT EXISTS idx_credit_trans_created ON credit_transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_uuid ON public.credit_transactions(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_created_at ON public.credit_transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_action_type ON public.credit_transactions(action_type);
+
 
 -- =====================================================
 -- CREDIT COSTS TABLE
@@ -174,18 +192,20 @@ CREATE INDEX IF NOT EXISTS idx_user_api_keys_user ON user_api_keys(user_uuid);
 -- SUBSCRIPTIONS TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS subscriptions (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    plan_uuid UUID REFERENCES plans(uuid),
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'past_due')),
-    current_period_start TIMESTAMP NOT NULL,
-    current_period_end TIMESTAMP NOT NULL,
-    cancel_at_period_end BOOLEAN DEFAULT false,
+     id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    plan_uuid UUID NOT NULL REFERENCES public.plans(uuid) ON DELETE RESTRICT,
+    status VARCHAR(50) DEFAULT 'active', -- active, cancelled, expired, paused
+    payment_provider VARCHAR(50), -- stripe, razorpay, paypal
+    payment_provider_subscription_id VARCHAR(255),
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
     cancelled_at TIMESTAMP,
-    payment_provider VARCHAR(50),
-    external_subscription_id VARCHAR(255),
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    metadata JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_uuid);
@@ -194,121 +214,132 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 -- =====================================================
 -- PAYMENTS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS payments (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    subscription_uuid UUID REFERENCES subscriptions(uuid),
+CREATE TABLE IF NOT EXISTS public.payments (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    subscription_uuid UUID REFERENCES public.subscriptions(uuid) ON DELETE SET NULL,
     amount DECIMAL(10,2) NOT NULL,
     currency VARCHAR(3) DEFAULT 'USD',
-    status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
-    payment_type VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'pending', -- pending, completed, failed, refunded
     payment_provider VARCHAR(50),
-    external_payment_id VARCHAR(255),
+    payment_provider_payment_id VARCHAR(255),
+    payment_method VARCHAR(50), -- card, upi, netbanking
+    receipt_url VARCHAR(500),
     metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_uuid);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-CREATE INDEX IF NOT EXISTS idx_payments_created ON payments(created_at DESC);
-
+CREATE INDEX IF NOT EXISTS idx_payments_user_uuid ON public.payments(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON public.payments(status);
 -- =====================================================
 -- CAMPAIGN GROUPS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS campaign_groups (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.campaign_groups (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    color VARCHAR(20) DEFAULT '#4F46E5',
+    color VARCHAR(7) DEFAULT '#3B82F6', -- Hex color code
+    icon VARCHAR(50) DEFAULT 'folder',
+    sort_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_campaign_groups_user ON campaign_groups(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_campaign_groups_user_uuid ON public.campaign_groups(user_uuid);
+
 
 -- =====================================================
 -- CAMPAIGNS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS campaigns (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    group_uuid UUID REFERENCES campaign_groups(uuid) ON DELETE SET NULL,
+CREATE TABLE IF NOT EXISTS public.campaigns (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    group_uuid UUID REFERENCES public.campaign_groups(uuid) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'archived')),
+    status VARCHAR(50) DEFAULT 'active', -- active, paused, completed, archived
+    color VARCHAR(7) DEFAULT '#10B981',
+    tags JSONB, -- Array of tags
+    metadata JSONB,
     leads_count INTEGER DEFAULT 0,
-    target_industry VARCHAR(255),
-    target_location VARCHAR(255),
-    settings JSONB DEFAULT '{}',
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_campaigns_user ON campaigns(user_uuid);
-CREATE INDEX IF NOT EXISTS idx_campaigns_group ON campaigns(group_uuid);
-CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_user_uuid ON public.campaigns(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_campaigns_group_uuid ON public.campaigns(group_uuid);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON public.campaigns(status);
+
 
 -- =====================================================
 -- SAVED LEADS TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS saved_leads (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    campaign_uuid UUID REFERENCES campaigns(uuid) ON DELETE SET NULL,
+CREATE TABLE IF NOT EXISTS public.saved_leads (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    campaign_uuid UUID REFERENCES public.campaigns(uuid) ON DELETE SET NULL,
+    search_uuid UUID REFERENCES public.searches(uuid) ON DELETE SET NULL,
+    -- Lead Details
     place_id VARCHAR(255),
     business_name VARCHAR(500) NOT NULL,
     address TEXT,
     phone VARCHAR(50),
-    website TEXT,
+    website VARCHAR(500),
     email VARCHAR(255),
     rating DECIMAL(2,1),
-    reviews_count INTEGER,
-    business_type VARCHAR(255),
+    total_ratings INTEGER,
+    business_type VARCHAR(100),
     latitude DECIMAL(10,8),
     longitude DECIMAL(11,8),
-    google_maps_url TEXT,
-    photo_url TEXT,
+    -- Additional Data
     opening_hours JSONB,
-    status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'qualified', 'proposal', 'won', 'lost')),
-    is_favorite BOOLEAN DEFAULT false,
+    photos JSONB,
+    reviews JSONB,
+    -- Status & Notes
+    status VARCHAR(50) DEFAULT 'new', -- new, contacted, qualified, converted, lost
     notes TEXT,
-    tags JSONB DEFAULT '[]',
-    contact_name VARCHAR(255),
-    contact_email VARCHAR(255),
-    contact_phone VARCHAR(50),
-    last_contacted TIMESTAMP,
-    metadata JSONB,
+    tags JSONB,
+    custom_fields JSONB,
+    -- Contact tracking
+    last_contacted_at TIMESTAMP,
+    contact_count INTEGER DEFAULT 0,
+    is_favorite BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_saved_leads_user ON saved_leads(user_uuid);
-CREATE INDEX IF NOT EXISTS idx_saved_leads_campaign ON saved_leads(campaign_uuid);
-CREATE INDEX IF NOT EXISTS idx_saved_leads_status ON saved_leads(status);
-CREATE INDEX IF NOT EXISTS idx_saved_leads_favorite ON saved_leads(is_favorite);
-CREATE INDEX IF NOT EXISTS idx_saved_leads_place ON saved_leads(place_id);
-CREATE INDEX IF NOT EXISTS idx_saved_leads_created ON saved_leads(created_at DESC);
-
+CREATE INDEX IF NOT EXISTS idx_saved_leads_user_uuid ON public.saved_leads(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_saved_leads_campaign_uuid ON public.saved_leads(campaign_uuid);
+CREATE INDEX IF NOT EXISTS idx_saved_leads_status ON public.saved_leads(status);
+CREATE INDEX IF NOT EXISTS idx_saved_leads_place_id ON public.saved_leads(place_id);
+CREATE INDEX IF NOT EXISTS idx_saved_leads_is_favorite ON public.saved_leads(is_favorite);
 -- =====================================================
 -- AI DOCUMENTS TABLE
 -- =====================================================
 CREATE TABLE IF NOT EXISTS ai_documents (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
-    lead_uuid UUID REFERENCES saved_leads(uuid) ON DELETE SET NULL,
-    document_type VARCHAR(50) NOT NULL CHECK (document_type IN ('proposal', 'email', 'follow_up', 'custom')),
-    title VARCHAR(500) NOT NULL,
-    subject VARCHAR(500),
+     id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID NOT NULL REFERENCES public.users(uuid) ON DELETE CASCADE,
+    lead_uuid UUID REFERENCES public.saved_leads(uuid) ON DELETE SET NULL,
+    document_type VARCHAR(50) NOT NULL, -- 'proposal', 'email', 'follow_up'
+    title VARCHAR(500),
     content TEXT NOT NULL,
-    template_uuid UUID,
-    metadata JSONB,
-    is_sent BOOLEAN DEFAULT false,
+    prompt_used TEXT,
+    lead_context JSONB,
+    template_name VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'draft', -- draft, sent, archived
     sent_at TIMESTAMP,
+    metadata JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_documents_user ON ai_documents(user_uuid);
@@ -319,22 +350,77 @@ CREATE INDEX IF NOT EXISTS idx_ai_documents_created ON ai_documents(created_at D
 -- =====================================================
 -- TEMPLATES TABLE
 -- =====================================================
-CREATE TABLE IF NOT EXISTS templates (
-    uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_uuid UUID REFERENCES users(uuid) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.templates (
+    id SERIAL PRIMARY KEY,
+    uuid UUID DEFAULT uuid_generate_v4() NOT NULL UNIQUE,
+    user_uuid UUID REFERENCES public.users(uuid) ON DELETE CASCADE, -- NULL for system templates
+    template_type VARCHAR(50) NOT NULL, -- 'proposal', 'email', 'follow_up'
     name VARCHAR(255) NOT NULL,
-    template_type VARCHAR(50) NOT NULL CHECK (template_type IN ('proposal', 'email', 'follow_up', 'custom')),
-    subject VARCHAR(500),
+    subject VARCHAR(500), -- For emails
     content TEXT NOT NULL,
-    variables JSONB DEFAULT '[]',
-    is_system BOOLEAN DEFAULT false,
+    variables JSONB, -- Available variables like {{business_name}}, {{owner_name}}
+    is_system BOOLEAN DEFAULT false, -- System-provided templates
     is_active BOOLEAN DEFAULT true,
+    usage_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_uuid);
-CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_templates_user_uuid ON public.templates(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_templates_template_type ON public.templates(template_type);
+
+
+-- Insert default system templates
+INSERT INTO public.templates (template_type, name, subject, content, variables, is_system) VALUES
+('email', 'Introduction Email', 'Partnership Opportunity for {{business_name}}',
+'Dear {{business_name}} Team,
+
+I came across your business and was impressed by your services. I believe there''s a great opportunity for us to work together.
+
+{{custom_message}}
+
+I''d love to schedule a quick call to discuss how we can help grow your business.
+
+Best regards,
+{{sender_name}}',
+'["business_name", "custom_message", "sender_name"]', true),
+
+('proposal', 'Business Proposal', NULL,
+'# Business Proposal for {{business_name}}
+
+## Executive Summary
+{{executive_summary}}
+
+## About Our Services
+{{services_description}}
+
+## Proposed Solution
+{{proposed_solution}}
+
+## Pricing
+{{pricing_details}}
+
+## Next Steps
+{{next_steps}}
+
+---
+Prepared by: {{sender_name}}
+Date: {{date}}',
+'["business_name", "executive_summary", "services_description", "proposed_solution", "pricing_details", "next_steps", "sender_name", "date"]', true),
+
+('follow_up', 'Follow-up Email', 'Following up - {{business_name}}',
+'Hi {{contact_name}},
+
+I wanted to follow up on my previous message regarding {{subject}}.
+
+{{follow_up_message}}
+
+Looking forward to hearing from you.
+
+Best,
+{{sender_name}}',
+'["contact_name", "business_name", "subject", "follow_up_message", "sender_name"]', true)
+ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- SEO REPORTS TABLE
