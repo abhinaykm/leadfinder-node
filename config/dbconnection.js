@@ -5,8 +5,8 @@ const config = require('../config/config');
 const isLocalhost = config.DB_HOST === 'localhost' || config.DB_HOST === '127.0.0.1';
 
 const sslConfig = isLocalhost ? false : {
-    rejectUnauthorized: true,
-    ca: `-----BEGIN CERTIFICATE-----
+    rejectUnauthorized: false,
+        ca: `-----BEGIN CERTIFICATE-----
 MIIEUDCCArigAwIBAgIUHl/isioIv3A090KPryj6tcrYhI8wDQYJKoZIhvcNAQEM
 BQAwQDE+MDwGA1UEAww1MTM1OTQ5MGMtYzg3MS00ZDk3LThmZDItYWRmNjlhZGIw
 ZmZkIEdFTiAxIFByb2plY3QgQ0EwHhcNMjUxMTA4MTI0MTM4WhcNMzUxMTA2MTI0
@@ -35,11 +35,11 @@ NY4OrW33sSh2PE1ymC8bhxurwEW5DEPPe+Ko2VwZROyI3eT5Sr0x/9De9IuNmawP
 };
 
 const pool = new Pool({
-    host: config.DB_HOST,
-    port: config.DB_PORT,
-    user: config.DB_USER,
-    password: config.DB_PASSWORD,
-    database: config.DB_DATABASE,
+   host: "gorilla-gorilla.i.aivencloud.com",
+    port: 20109,
+    user: "avnadmin",
+    password: "AVNS_7mBC8K--9QHE6VIeXLA",
+    database: "defaultdb",
     ssl: sslConfig,
 });
 
