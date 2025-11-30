@@ -2,6 +2,15 @@ require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const dns = require('dns');
+
+// Force IPv4 DNS resolution globally (works in Node.js 17+)
+try {
+    dns.setDefaultResultOrder('ipv4first');
+    console.log("DNS resolution set to IPv4-first");
+} catch (err) {
+    console.warn("setDefaultResultOrder not available, using default DNS resolution");
+}
 
 const app = express();
 app.use(cors());
@@ -11,20 +20,22 @@ app.use(express.json());
 console.log("Attempting DB Connection with:");
 console.log("Host:", process.env.DB_HOST || "Using Hardcoded Fallback (Not Recommended)");
 console.log("User:", process.env.DB_USER || "Using Hardcoded Fallback");
+console.log("Node version:", process.version);
 // Never log the actual password!
 
 const pool = new Pool({
-    host: process.env.DB_HOST || "db.speiewcctfjngucgwekx.supabase.co",
+    host: process.env.DB_HOST || 'ep-proud-hill-a1125h95-pooler.ap-southeast-1.aws.neon.tech',
     port: process.env.DB_PORT || 5432,
-    user: process.env.DB_USER || "postgres",
-    password: process.env.DB_PASSWORD, // Make sure this is set in Render Dashboard!
-    database: process.env.DB_DATABASE || "postgres",
+    user: process.env.DB_USER || 'neondb_owner',
+    password: process.env.DB_PASSWORD || 'npg_oBWeUht6XH5d',
+    database: process.env.DB_DATABASE || 'buzzhive',
     ssl: {
         rejectUnauthorized: false
     },
-    connectionTimeoutMillis: 5000, // Fail fast if connection hangs
-    family: 4 // Force IPv4 to resolve ECONNREFUSED on IPv6 addresses
+    connectionTimeoutMillis: 5000
 });
+
+console.log("Database pool initialized");
 
 // Health check for Render
 app.get("/buzzhivenode/health", (req, res) => {
