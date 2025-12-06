@@ -617,6 +617,8 @@ const saveMultipleLeads = async (req, res) => {
 
         await client.query('COMMIT');
 
+        // Note: leads_count is automatically updated by database trigger
+
         res.status(201).json({
             success: true,
             message: `${savedLeads.length} leads saved, ${skippedLeads.length} skipped`,
@@ -708,6 +710,8 @@ const deleteLead = async (req, res) => {
                 message: 'Lead not found'
             });
         }
+
+        // Note: leads_count is automatically updated by database trigger
 
         res.json({
             success: true,

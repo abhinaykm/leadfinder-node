@@ -4,7 +4,7 @@ const config = require('../config/config');
 
 const saveSearchHistory = async (req, res) => {
     try {
-        const { keyword, location, radius, results_count, searched_by, searched_at } = req.body;
+        const { keyword, location, radius, results_count, searched_by, searched_at, leads } = req.body;
 
         if (!keyword || !location || !radius) {
             return res.status(400).json({
@@ -55,13 +55,14 @@ const saveSearchHistory = async (req, res) => {
             RETURNING uuid, created_at
         `;
 
-        // For now, we'll store basic search info. Later you can add geocoding to get lat/lng
+        // Store full search results including the actual business leads
         const searchResults = {
             keyword,
             location,
             results_count: results_count || 0,
             searched_by: searched_by || 'unknown',
-            searched_at: searched_at || new Date()
+            searched_at: searched_at || new Date(),
+            leads: leads || [] // Store actual business leads data
         };
 
         const values = [
